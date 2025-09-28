@@ -94,5 +94,56 @@ bool pt_pair(struct PTY *pty) {
     return true;
 }
 
+void x11_key(XKeyEvent *ev, struct PTY *pty) {
+  char buf[32];
+  int i, num;
+  KeySym ksym;
 
+  num = XLookupString(ev, buf, sizeof, &ksym, 0);
+  for (i = 0, i < num; i++) {
+    write(pty->master, &buf[i], 1);
+  }
+}
+
+void x11_redraw(struct X11 *x11) {
+  int x, y;
+  char buf[1];
+
+  XSetForeground(x11->dpy, x11->termgc, x11->col_fg);
+  XFillRectangle(x11->dpy, x11->termwin, x11->termgc, 0, 0, x11->w, x11->h);
+
+  XSetForeground(x11->dpy, x11->termgc, x11-> col_fg);
+  for(y=0; y < x11->buf_h; y++) {
+    for(x=0; x < x11->buf_w; x++) {
+      buf[0] = x11->buf[y * x11->buf_w + x];
+      if(!iscntrl(buf[0])) {
+        XDrawString(x11->dpy, x11->termwin, x11->termgc, 
+                    x * x11->font_width,
+                    y * x11->font_height + x11->xfont->ascent,
+                    buf, 1
+                    );
+      }
+    }
+  }
+
+  XSetForeground(x11->dpy, x11->termgc, x11->col_fg);
+  XFillRectangle(x11->dpy, x11->termwin, x11->termgc, x11->buf_x * x11->font_width, x11->buf_y * x11->font_height, x11->font_width, x11->font_height);
+  XSync(x11->dpy, False);
+}
+
+bool x11_setup(struct X11 *x11) {
+  Colormap cmap;
+  XColor color;
+  XSetWindowAttributes wa = { .background_pixmap = ParentRelative, .event_mask = KeyPressMask | KeyReleaseMask | ExposureMask, };
+  
+  x11->dpy = XOpenDisplay(NULL);
+  if(x11->dpy == NULL) {
+    fprintf(stderr, "cannot open display\n");
+    return false;
+  }
+
+  x11->screen = DefaultScreen(x11->dpy);
+  x11->root = RootWindow(x11->dpy, x11->screen);
+  x11->fd = ConnectionNumber(x11->dpy);
+}
 
