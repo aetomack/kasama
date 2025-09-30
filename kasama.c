@@ -103,7 +103,7 @@ void x11_key(XKeyEvent *ev, struct PTY *pty) {
 
   num = XLookupString(ev, buf, sizeof buf, &ksym, 0);
   for (i = 0; i < num; i++) {
-    fwrite(pty->master, &buf[i], 1);
+    write(pty->master, &buf[i], 1);
   }
 }
 
@@ -165,7 +165,7 @@ bool x11_setup(struct X11 *x11) {
   x11->col_bg = color.pixel;
 
   if(!XAllocNamedColor(x11->dpy, cmap, "#aaaaaa", &color, &color)){
-    fprint(stderr, "Could not load bg color\n");
+    fprintf(stderr, "Could not load bg color\n");
     return false;
   }
   x11->col_fg = color.pixel;
@@ -201,7 +201,7 @@ bool spawn(struct PTY *pty) {
 
     p = fork();
     if (p == 0) {
-        pclose(pty->master);
+        close(pty->master);
         setsid();
         if (ioctl(pty->slave, TIOCSCTTY, NULL) == -1) {
             perror("ioctl(TIOCSCTTY)");
