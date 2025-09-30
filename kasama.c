@@ -145,5 +145,51 @@ bool x11_setup(struct X11 *x11) {
   x11->screen = DefaultScreen(x11->dpy);
   x11->root = RootWindow(x11->dpy, x11->screen);
   x11->fd = ConnectionNumber(x11->dpy);
+
+  x11->xfont = XLoadQueryFont(x11->dpy, x11->screen);
+  if(x11->xfont == NULL) {
+    fprintf(stderr, "Could not load font\n");
+    return false;
+  }
+  x11->font_width = XTextWidth(x11->xfont, "m", 1);
+  x11->font_height = x11->xfont->ascent + x11->xfont->descent;
+
+  cmap = DefaultColormap(x11->dpy, x11->screen);
+
+  if(!XAllocNamedColor(x11->dpy, cmap, "#000000", &color, &color)){
+    fprint(stderr, "Could not load color\n");
+    return false;
+  }
+  x11->col_bg = color.pixel;
+
+  if(!XAllocNamedColor(x11->dpy, cmap, "#aaaaaa", &color, &color)){
+    fprint(stderr, "Could not load bg color\n");
+    return false;
+  }
+  x11->col_fg = color.pixel;
+
+  /* Terminal will have an absolute, arbitrary size. WIll need to automatically resize based on wayland/hyprland
+  *  No resizing is available atm. Current size is 80x25 cells
+  */
+  x11->buf_w = 80;
+  x11->buf_h = 25;
+  x11->buf_x = 0;
+  x11->buf_y = 0;
+  x11->buf =calloc(x11->buf_w * x11->buf_h, 1);
+  if(x11->buf == NULL) {
+    perror("calloc");
+    return false;
+  }
+
+  x11->w = x11->buf_w * x11->font_width;
+  x11->h = x11->buf_h * x11->font_height;
+
+  x11->termwin = XCreateWindow(x11->dpy, x11->root, 0, 0, x11->w, x11->h, 0, DefaultDepth(x11->dpy, x11->screen), CopyFromParent, DefaultVisual(x11->dpy, x11->screen), CWBackPixmap | CWEventMask, &wa);
+  XStoreName(x11->dpy, x11->termwin, "kasama");
+  XMapWindow(x11->dpy, x11->termwin);
+  x11->termgc = XCreateGC(x11->dpy, x11->termwin, 0, NULL);
+  XSynce(x11->dpy, False);
+
+  return true;
 }
 
