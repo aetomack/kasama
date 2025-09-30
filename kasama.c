@@ -10,6 +10,7 @@
 #include <termios.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <stdlib.h>
 
 /* Caution while launching /bin/sh: may launch GNU Bash. 
  * Potential side-effects could be wiping ~/.bash_history
@@ -100,7 +101,7 @@ void x11_key(XKeyEvent *ev, struct PTY *pty) {
   KeySym ksym;
 
   num = XLookupString(ev, buf, sizeof, &ksym, 0);
-  for (i = 0, i < num; i++) {
+  for (i = 0; i < num; i++) {
     write(pty->master, &buf[i], 1);
   }
 }
