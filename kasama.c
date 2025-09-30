@@ -238,7 +238,7 @@ int run(struct PTY *pty, struct X11 *x11) {
         FD_SET(pty->master, &readable);
         FD_SET(x11->fd, &readable);
 
-        if(select(maxfd + 1, &readable, NULL, NULL, NULL) {
+        if(select(maxfd + 1, &readable, NULL, NULL, NULL)) {
             perror("select");
             return 1;
         }
@@ -320,7 +320,7 @@ int main() {
 
     if(!x11_setup(&x11)) return 1;
     if(!pt_pair(&pty)) return 1;
-    if(!term_set_size(&pty, &x11) return 1;
+    if(!term_set_size(&pty, &x11)) return 1;
     if(!spawn(&pty)) return 1;
 
     return run(&pty, &x11);
