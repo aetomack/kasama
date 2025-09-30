@@ -18,6 +18,7 @@
  * because it disregards $HISTSIZE from ~/.bashsrc.
  * Instead, launch /bin/dash.
 */
+#define SHELL "/bin/dash"
 
 // Pseudoterminal struct for master, slave
 struct PTY {
@@ -227,7 +228,7 @@ bool spawn(struct PTY *pty) {
 int run(struct PTY *pty, struct X11 *x11) {
     int i, maxfd;
     fd_set readable;
-    XEvent evl
+    XEvent ev;
     char buf[1];
     bool just_wrapped = false;
 
