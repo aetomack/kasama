@@ -193,3 +193,134 @@ bool x11_setup(struct X11 *x11) {
   return true;
 }
 
+bool spawn(struct PTY *pty) {
+    pid_t p; 
+    char *env[] = {"TERM=dumb", NULL};
+
+    p = fork();
+    if (p == 0) {
+        close(pty->master);
+        setsid();
+        if (ioctl(pty->slave, TIOCSCTTY, NULL) == -1) {
+            perror("ioctl(TIOCSCTTY)");
+            return false;
+        }
+
+        dup2(pty->slave, 0);
+        dup2(pty->slave, 1);
+        dup2(pty->slave, 2);
+        close(pty->slave);
+
+        execle(SHELL, "-" SHELL, (char *)NULL, env);
+        return false;
+    } else if (p > 0){
+        close(pty->slave);
+        return false;
+    }
+
+    perror("fork");
+    return false;
+}
+
+int run(struct PTY *pty, struct X11 *x11) {
+    int i, maxfd;
+    fd_set readable;
+    XEvent evl
+    char buf[1];
+    bool just_wrapped = false;
+
+    maxfd = pty->master > x11->fd ? pty->master : x11->fd;
+
+    for(;;) {
+        FD_ZERO(&readable);
+        FD_SET(pty->master, &readable);
+        FD_SET(x11->fd, &readable);
+
+        if(select(maxfd + 1, &readable, NULL, NULL, NULL) {
+            perror("select");
+            return 1;
+        }
+
+        if(FD_ISSET(pty->master, &readable)) {
+            if (read(pty->master, buf, 1) <= 0) {
+                fprintf(stderr, "Nothing to read from child: ");
+                perror(NULL);
+                return 1;
+            }
+
+            if(buf[0] == '\r') {
+                /* Carriage returns are the simplest terminal command.
+                * They make the cursor jump to the back of the first column. 
+                */
+                x11->buf_x = 0;
+            } else {
+                if (buf[0] != '\n') {
+                    /* If a regular byte, store it and advance the cursor one cell "to the right".
+                    *  Might potentially wrap to the next line.
+                    */
+                    x11->buf[x11->buf_y * x11->buf_w + x11->buf_x] = buf[0];
+                    x11->buf_x++;
+
+                    if(x11->buf_x >= x11->buf_w) { // wrap to next line
+                        x11->buf_x = 0; 
+                        x11->buf_y++;
+                        just_wrapped = true;
+                    }
+
+                    just_wrapped = false;
+                } else if (!just_wrapped) {
+                    /* We read a newline and did NOT implicity wrap to the next line with the last byte we read. 
+                    * This means we must NOW advance to the next line.
+                    * This is basically the same behavior as every other terminal emulator. If you print a full
+                    * line and then to a newline, it just ignores that \n. Best to behave this way, as considering the \n
+                    * could cause the cursor to jump to a newline again.
+                    */
+                    x11->buf_y++;
+                    just_wrapped = false;
+                }
+
+                /* We now need to check if the next line is actually outside of the buffer. 
+                * If so, shift all content a line up and then stay in the last line.
+                * After the memmove(), the last line still has the old content. Must clear.
+                */
+                if (x11->buf_y >= x11->buf_h) {
+                    memmove(x11->buf, &x11->buf[x11->buf_w],
+                            x11->buf_w * (x11->buf_h -1));
+                    x11->buf_y = x11->buf_h -1;
+
+                    for(i = 0; i<x11->buf_w; i++) {
+                        x11->buf[x11->buf_y * x11->buf_w + i] = 0;
+                    }
+                }
+            }
+            x11_redraw(x11);
+        }
+        if (FD_ISSET(x11->fd, &readable)){
+            while (XPending(x11->dpy)){
+                XNextEvent(x11->dpy, &ev);
+                switch (ev.type) {
+                    case Expose:
+                        x11_redraw(x11);
+                        break; 
+                    case KeyPress:
+                        x11_key(&ev.xkey, pty);
+                        break;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+int main() {
+    struct PTY pty;
+    struct X11 x11;
+
+    if(!x11_setup(&x11)) return 1;
+    if(!pt_pair(&pty)) return 1;
+    if(!term_set_size(&pty, &x11) return 1;
+    if(!spawn(&pty)) return 1;
+
+    return run(&pty, &x11);
+}
+
