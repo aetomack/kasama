@@ -11,6 +11,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 /* Caution while launching /bin/sh: may launch GNU Bash. 
  * Potential side-effects could be wiping ~/.bash_history
@@ -100,9 +101,9 @@ void x11_key(XKeyEvent *ev, struct PTY *pty) {
   int i, num;
   KeySym ksym;
 
-  num = XLookupString(ev, buf, sizeof, &ksym, 0);
+  num = XLookupString(ev, buf, sizeof buf, &ksym, 0);
   for (i = 0; i < num; i++) {
-    write(pty->master, &buf[i], 1);
+    fwrite(pty->master, &buf[i], 1);
   }
 }
 
@@ -147,7 +148,7 @@ bool x11_setup(struct X11 *x11) {
   x11->root = RootWindow(x11->dpy, x11->screen);
   x11->fd = ConnectionNumber(x11->dpy);
 
-  x11->xfont = XLoadQueryFont(x11->dpy, x11->screen);
+  x11->xfont = XLoadQueryFont(x11->dpy, "fixed");
   if(x11->xfont == NULL) {
     fprintf(stderr, "Could not load font\n");
     return false;
@@ -158,7 +159,7 @@ bool x11_setup(struct X11 *x11) {
   cmap = DefaultColormap(x11->dpy, x11->screen);
 
   if(!XAllocNamedColor(x11->dpy, cmap, "#000000", &color, &color)){
-    fprint(stderr, "Could not load color\n");
+    fprintf(stderr, "Could not load color\n");
     return false;
   }
   x11->col_bg = color.pixel;
@@ -189,7 +190,7 @@ bool x11_setup(struct X11 *x11) {
   XStoreName(x11->dpy, x11->termwin, "kasama");
   XMapWindow(x11->dpy, x11->termwin);
   x11->termgc = XCreateGC(x11->dpy, x11->termwin, 0, NULL);
-  XSynce(x11->dpy, False);
+  XSync(x11->dpy, False);
 
   return true;
 }
@@ -200,7 +201,7 @@ bool spawn(struct PTY *pty) {
 
     p = fork();
     if (p == 0) {
-        close(pty->master);
+        pclose(pty->master);
         setsid();
         if (ioctl(pty->slave, TIOCSCTTY, NULL) == -1) {
             perror("ioctl(TIOCSCTTY)");
