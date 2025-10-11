@@ -22,8 +22,31 @@
 // Utility macros
 #define SHELL "/bin/dash"
 #define cstring_len(s) (sizeof(s)-1) // to retrieve string lengths
-#define roundup_4(n) (((n) + 3) & -4) // Wayland protocol messages must be 4-byte aligned. Pads message lengths.
+#define roundup_4(n) (((n) + 3) & -4) // Wayland protocol messages must be 4-byte aligned. Pads message lengths
 
+static const uint32_t wayland_display_object_id = 1;
+static const uint16_t wayland_wl_registry_event_global = 0;
+static const uint16_t wayland_shm_pool_event_format = 0;
+static const uint16_t wayland_wl_buffer_event_release = 0;
+static const uint16_t wayland_xdg_wm_base_event_ping = 0;
+static const uint16_t wayland_xdg_toplevel_event_configure = 0;
+static const uint16_t wayland_xdg_toplevel_event_close = 1;
+static const uint16_t wayland_xdg_surface_event_configure = 0;
+static const uint16_t wayland_wl_display_get_registry_opcode = 1;
+static const uint16_t wayland_wl_registry_bind_opcode = 0;
+static const uint16_t wayland_wl_compositor_create_surface_opcode = 0;
+static const uint16_t wayland_xdg_wm_base_pong_opcode = 3;
+static const uint16_t wayland_xdg_surface_ack_configure_opcode = 4;
+static const uint16_t wayland_wl_shm_create_pool_opcode = 0;
+static const uint16_t wayland_xdg_wm_base_get_xdg_surface_opcode = 2;
+static const uint16_t wayland_wl_shm_pool_create_buffer_opcode = 0;
+static const uint16_t wayland_wl_surface_attach_opcode = 1;
+static const uint16_t wayland_xdg_surface_get_toplevel_opcode = 1;
+static const uint16_t wayland_wl_surface_commit_opcode = 6;
+static const uint16_t wayland_wl_display_error_event = 0;
+static const uint32_t wayland_format_xrgb8888 = 1;
+static const uint32_t wayland_header_size = 8;
+static const uint32_t color_channels = 4;
 
 /*
 * We first must connect to the wayand compositor. Where X11 can run over network via TCP/IP, Wayland runs locally 
@@ -78,6 +101,78 @@ static int wayland_display_connect() {
   
   // return file descriptor! We can now send & receive requests & events from the compositor.
   return fd;
+}
+
+
+/*
+* Create a registry so we can query compositor.
+* For wayland object creation, we'll just need to send a message followed by a unique id of our own creation.
+* Message struture takes an id of the resource we call the method on (4 bytes); the opcode of the method (2 bytes); size of msg (2 bytes)
+*/
+
+static void buf_write_u32(char *buf, uint64_t *buf_size, uint64_t buf_cap, uint32_t x) {
+  assert(*buf_size + sizeof(x) <= buf_cap);
+  assert(((size_t)buf + *buf_size) % sizeof(x) == 0);
+
+  *(uint32_t *)(buf + *buf_size) = x;
+  *buf_size += sizeof(x);
+}
+
+static void buf_write_u16(char *buf, uint64_t *buf_size, uint64_t buf_cap, uint x) {
+  assert(*buf_size + sizeof(x) <= buf_cap);
+  assert(((size_t)buf + *buf_size) % sizeof(x) == 0);
+
+  *(uint16_t *)(buf + *buf_size) = x;
+  buf_size += sizeof(x);
+}
+
+
+static void buf_write_string(char *buf, uint64_t *buf_size, uint64_t buf_cap, char *src, uint32_t src_len) {
+  assert(*buf_size + src_len <= buf_cap);
+  buf_write_u32(buf, buf_size, buf_cap, src_len);
+  memcpy(buf + *buf_size, src, roundup_4(src_len));
+  *buf_size += roundup_4(src_len);
+}
+
+static uint32_t buf_read_u32(char **buf, uint64_t *buf_size) {
+  assert(*buf_size >= sizeof(uint32_t));
+  assert((size_t)*buf % sizeof(uint32_t) == 0);
+
+  uint32_t res = *(uint32_t *)(*buf);
+  *buf += sizeof(res);
+  *buf_size -= sizeof(res);
+
+  return res;
+}
+
+static uint16_t buf_read_u16(char **buf, uint64_t *buf_size) {
+  assert(*buf_size >= sizeof(uint16_t));
+  assert((size_t)*buf % sizeof(uint16_t) == 0);
+ 
+  uint16_t res = *(uint16_t *)(*buf);
+  *buf += sizeof(res);
+  *buf_size -= sizeof(res);
+
+  return res;
+}
+
+static void buf_read_n(char **buf, uint64_t *buf_size, char *dst, uint64 n) {
+  assert(*buf_size >= n);
+
+  memcpy(dst, *buf, n);
+
+  *buf += n;
+  *buf_size -= n;
+}
+
+static uint32_t wayland_wl_display_get_registry(int fd) {
+  uint64_t msg_size = 0;
+  char msg[128] = "";
+  buf_write_u32(msg, &msg_size, sizeof(msg), wayland_display_object_id);
+  buf_wite_u16(msg, &msg_size, sizeof(msg), wayland_wl_display_get_registry_opcode);
+
+  uint16_t msg_annouced_size = wayland_header_size + sizeof(wayland_current_id);
+  assert(roundup_4(msg_announced_size) == msg_announced_size);
 }
 // Pseudoterminal struct for master, slave
 struct PTY {
