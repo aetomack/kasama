@@ -18,8 +18,67 @@
  * because it disregards $HISTSIZE from ~/.bashsrc.
  * Instead, launch /bin/dash.
 */
-#define SHELL "/bin/dash"
 
+// Utility macros
+#define SHELL "/bin/dash"
+#define cstring_len(s) (sizeof(s)-1) // to retrieve string lengths
+#define roundup_4(n) (((n) + 3) & -4) // Wayland protocol messages must be 4-byte aligned. Pads message lengths.
+
+
+/*
+* We first must connect to the wayand compositor. Where X11 can run over network via TCP/IP, Wayland runs locally 
+* and uses a UNIX domain socket. 
+*
+* Why not use wl_display_connect from libwayland-client and avoid this low level logic? 
+* Because I'm a stud. I don't take no shit. I smoke my stogie anywhere I want. I don't have to hide like you.
+*/
+static int wayland_display_connect() {
+  char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR"); // Wayland sockets live under the runtime directory.
+  if (xdg_runtime_dir == NULL) {
+    return EINVAL; // if unreachable, cannot connect to compositor. fail.
+  }
+
+  uint64_t xdg_runtime_dir_len = strlen(xdg_runtime_dir);
+
+  // Build base path
+  struct sockaddr_un addr = {.sun_family = AF_UNIX}; // standard struct for unix domain sockets. AF_UNIX instructs this is a local socket
+  assert(xdg_runtime_dir_len <= cstring_len(addr.sun_path)); // addr.sun_path is the actual socket path. Ensure we don't overflow
+  uint64_t socket_path_len = 0;
+
+  memcpy(addr.sun_path, xdg_runtime_dir, xdg_runtime_dir_len);
+  socket_path_len += xdg_runtime_dir_len;
+
+  addr.sun_path[socket_path_len++] = '/';
+
+  // Append display name to base path
+  char *wayland_display = getenv("WAYLAND_DISPLAY"); // which socket file to connect to?
+  if (wayland_display == NULL) {
+    char wayland_display_default[] = "wayland-0"; // if not set, just default to 0
+    uint64_t wayland_display_default_len = cstring_len(wayland_display_default);
+
+    memcpy(addr.sun_path + socket_path_len, wayland_display_default, wayland_display_default_len);
+    socket_path_len += wayland_display_default_len;
+  } else {
+    uint64_t wayland_display_len = strlen(wayland_display);
+    memcpy(addr.sun_path + socket_path_len, wayland_display, wayland_display_len);
+    socket_path_len += wayland_display_len;
+  }
+
+  // Create a stream socket
+  int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (fd == -1) {
+    exit(errno);
+  }
+
+  // With our wayland compositor path we built and the socket defined, attempt to connect.
+  // If successful, compositor accepts and the file descriptor becomes communication channel.
+  if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+    exit(errno);
+  }
+  
+  // return file descriptor! We can now send & receive requests & events from the compositor.
+  return fd;
+}
 // Pseudoterminal struct for master, slave
 struct PTY {
     int master, slave; // int because posix_openpt returns 
@@ -30,7 +89,7 @@ struct PTY {
 struct X11 {
     int fd;
     Display *dpy; 
-    int screen;
+    int screen;how to compile a c program
     Window root;
 
     Window termwin;
