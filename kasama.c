@@ -110,33 +110,67 @@ static int wayland_display_connect() {
 * Message struture takes an id of the resource we call the method on (4 bytes); the opcode of the method (2 bytes); size of msg (2 bytes)
 */
 
-static void buf_write_u32(char *buf, uint64_t *buf_size, uint64_t buf_cap, uint32_t x) {
-  assert(*buf_size + sizeof(x) <= buf_cap);
-  assert(((size_t)buf + *buf_size) % sizeof(x) == 0);
 
-  *(uint32_t *)(buf + *buf_size) = x;
-  *buf_size += sizeof(x);
+/*
+* @brief Writes a 32-bit message to send to wayland compositor. 
+*
+* @param *buf Pointer to the byte buffer to which we'll write command.
+* @param *buf_size Pointer to the number of how many bytes we've written so far.
+* @param buf_cap Max capacity of the buffer.
+* @param x The 32-bit value we're writing.
+*
+* @return void
+*/
+static void buf_write_u32(char *buf, uint64_t *buf_size, uint64_t buf_cap, uint32_t x) {
+  assert(*buf_size + sizeof(x) <= buf_cap); // assert we have space for message
+  assert(((size_t)buf + *buf_size) % sizeof(x) == 0); // assert there is exactly 32-bits of space
+
+  // Note the pointer at the beginning: We dereference this arg so we can actually write to the location.
+  *(uint32_t *)(buf + *buf_size) = x; // Moves pointer forward by buf_size to free space, and write
+  *buf_size += sizeof(x); // Increase buffer size by size of x.
 }
 
-static void buf_write_u16(char *buf, uint64_t *buf_size, uint64_t buf_cap, uint x) {
-  assert(*buf_size + sizeof(x) <= buf_cap);
-  assert(((size_t)buf + *buf_size) % sizeof(x) == 0);
 
-  *(uint16_t *)(buf + *buf_size) = x;
+/*
+* @brief Writes a 16-bit message to send to wayland compositor.
+*
+* @param *buf Pointer to the byte buffer to which we'll write message to pass to compositor.
+* @param *buf_size Pointer to the number of how many bytes we've written so far.
+* @param buf_cap Max capacity of the buffer.
+* @param x The 16-bit message we're writing.
+*
+* @return void
+*/
+static void buf_write_u16(char *buf, uint64_t *buf_size, uint64_t buf_cap, uint16_t x) {
+  assert(*buf_size + sizeof(x) <= buf_cap); // Assert we have enough space in our buffer to write x
+  assert(((size_t)buf + *buf_size) % sizeof(x) == 0) // exactly 16 bits;
+
+  *(uint16_t *)(buf + *buf_size) = x; // dereference and cast to 16-bit int, increment to next free space and write x.
   buf_size += sizeof(x);
 }
 
-
+/*
+* @brief Writes a constructed string argument into our message buffer in the format Wayland expects.
+*        Our buffer is max 32-bit. Wayland expects messages 4 bytes long (32 bits). We can of course pad this.
+*        Why do we use memcpy? With other methods, we are clearly expecting 32 or 16 bits. Strings can be of arbitrary length, however.
+*        Differs from integers since where we could normally just drop them in place, we need to copy entire chunks of bytes. Hence memcpy.
+*
+* @param *buf Pointer to the start of our message buffer
+* @param *buf_size Pointer to our current write offset
+* @param buf_cap Max size of our buffer. Used to ensure we don't overflow
+* @param *src Pointer to the string source.
+* @param src_len Length of our string 
+*/
 static void buf_write_string(char *buf, uint64_t *buf_size, uint64_t buf_cap, char *src, uint32_t src_len) {
-  assert(*buf_size + src_len <= buf_cap);
-  buf_write_u32(buf, buf_size, buf_cap, src_len);
-  memcpy(buf + *buf_size, src, roundup_4(src_len));
+  assert(*buf_size + src_len <= buf_cap); // check for overflow before writing.
+  buf_write_u32(buf, buf_size, buf_cap, src_len); // writes a 32-bit string at the current offset.
+  memcpy(buf + *buf_size, src, roundup_4(src_len)); // Copy entire string, of arbitrary length.
   *buf_size += roundup_4(src_len);
 }
 
 static uint32_t buf_read_u32(char **buf, uint64_t *buf_size) {
-  assert(*buf_size >= sizeof(uint32_t));
-  assert((size_t)*buf % sizeof(uint32_t) == 0);
+  assert(*buf_size >= sizeof(uint32_t)); // check for overflow before doing anything else.
+  assert((size_t)*buf % sizeof(uint32_t) == 0); E
 
   uint32_t res = *(uint32_t *)(*buf);
   *buf += sizeof(res);
@@ -146,7 +180,7 @@ static uint32_t buf_read_u32(char **buf, uint64_t *buf_size) {
 }
 
 static uint16_t buf_read_u16(char **buf, uint64_t *buf_size) {
-  assert(*buf_size >= sizeof(uint16_t));
+
   assert((size_t)*buf % sizeof(uint16_t) == 0);
  
   uint16_t res = *(uint16_t *)(*buf);
@@ -156,7 +190,7 @@ static uint16_t buf_read_u16(char **buf, uint64_t *buf_size) {
   return res;
 }
 
-static void buf_read_n(char **buf, uint64_t *buf_size, char *dst, uint64 n) {
+static void buf_read_n(char **buf, uint64_t *buf_size, char *dst, uint64_t n) {
   assert(*buf_size >= n);
 
   memcpy(dst, *buf, n);
@@ -173,6 +207,14 @@ static uint32_t wayland_wl_display_get_registry(int fd) {
 
   uint16_t msg_annouced_size = wayland_header_size + sizeof(wayland_current_id);
   assert(roundup_4(msg_announced_size) == msg_announced_size);
+  buf_write_u16(msg, &msg_size, sizeof(msg), msg_announced_size);
+  if ((int64_t)msg_size != send(fd, msg, msg_size, MSG_DONTWAIT))
+    exit(errno)
+
+  printf("-> wl_display@%u.get_registry: wl_registry=%u\n", 
+        wayland_display_object_id, wayland_current_id);
+
+  return wayland_current_id;
 }
 // Pseudoterminal struct for master, slave
 struct PTY {
