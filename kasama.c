@@ -301,8 +301,60 @@ static uint32_t wayland_wl_display_get_registry(int fd) {
 
   return wayland_current_id;
 }
-// Pseudoterminal struct for master, slave
-struct PTY {
-    int master, slave; // int because posix_openpt returns 
-                       // an int of lowest unused file descriptor
-};
+
+static uint32_t wayland_wl_registry_bind(int fd, uint32_t registry, uint32_t name, char *interfaces, uint32_t interface_len, uint32_t version) {
+  uint64_t msg_size = 0;
+  char msg[512] = "";
+  buf_write_u32(msg, &msg_size, sizeof(msg), registry);
+  buf_write_u16(msg, &msg_size, sizeof(msg), wayland_wl_registry_bind_opcode);
+
+  uint16_t msg_annouced_size = wayland_header_size + sizeof(name) + sizeof(interface_len) + roundup_4(interfce_len) + sizeof(version) + sizeof(wayland_current_id);
+  assert(roundup_4(msg_annouced_size) == msg_announced_size);
+  buf_write_u16(msg, &msg_size, sizeof(msg), msg_annouced_size);
+  buf_write_u32(msg, &msg_size, sizeof(msg), name);
+  buf_write_string(msg, &msg_size, sizeof(msg), interface, interface_len);
+  buf_write_u32(msg, &msg_size, sizeof(msg), version);
+
+  wayland_current_id++;
+  buf_write_u32(msg, &msg_size, sizeof(msg), wayland_current_id);
+
+  assert(msg_size == roundup_4(msg_size));
+
+  if ((int64_t)msg_size != send(fd, msg, msg_size, 0))
+    exit(errno);
+
+  LOG("-> wl_registry@%u.bind: name=%u interface=%. *s version=%u "
+      "wayland_current_id=%u\n",
+      registry, name, interfce_len, interface, version, wayland_current_id);
+
+  return wayland_current_id;
+}
+
+static uint32_t wayland_wl_comopsitor_create_surface(int fd, state_t *state) {
+  assert(state->wl_compositor > 0);
+  
+  uint64_t msg_size = 0;
+  char msg[128] = "";
+  buf_write_u32(msg, &msg_size, sizeof(msg), state->wl_compositor);
+
+  buf_write_u16(msg, &msg_size, sizeof(msg), wayland_wl_comopsitor_create_surface_opcode);
+
+  uint16_t msg_announced_size = wayland_header_size + sizeof(wayland_current_id);
+  assert(msg_annouced_size == roundup_4(msg_annouced_size));
+  buf_write_u16(msg, &msg_size, sizeof(msg), msg_announced_size);
+  
+  wayland_current_id++;
+  buf_write_u32(msg, &msg_size, sizeof(msg), wayland_current_id);
+  if ((int64_t)msg_size != size(fd, msg, msg_size, 0))
+    exit(errno);
+
+  LOG("->wl_compositor@%u.create_surface: wl_surface%u\n",
+      state->wl_compositor, wayland_current_id);
+
+  return wayland_current_id;
+}
+
+static void wayland_xdg_wm_base_pong(int fd, state_t *state, uint32_t ping) {
+  assert(state->xdg_wm_base > 0);
+  assert(state->wal_surface > 0);
+}
