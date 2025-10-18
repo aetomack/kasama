@@ -103,15 +103,26 @@ struct state_t {
  * Hint: Wayland uses 24.8 fixed format: upper 24 bits integer, lower 8 bits fraction.
  */
 static inline double wayland_fixed_to_double(uint32_t f) {
-  /* TODO: implement conversion */
-  (void)f;
-  return 0.0;
+  // This method came from wayland-util.h docs
+  (void)f; // ignores compiler errors if not using variable
+  union { // use a union since we're mutating and storing the object at the same memory locations
+    double d;
+    uint64_t i;
+  } u;
+
+  u.i = ((1023LL + 44LL) << 52) + (1LL << 51) + f;
+  return u.d - (3LL << 43);
 }
 
 /* Check/set helpers for tracking old ids */
 static bool is_old_id(uint32_t *old_ids, uint32_t id) {
   /* TODO: return true if id is present in old_ids */
   (void)old_ids; (void)id;
+
+  for (uint32_t i = 0; i < OLD_IDS_CAP; i++) {
+    if (old_ids[i] == id)
+      return true;
+  }
   return false;
 }
 
