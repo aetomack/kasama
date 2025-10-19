@@ -1,13 +1,8 @@
-# CS Systems Programming Assignment
+## Building a Minimal Wayland Client for a Terminal Emulator
 
-## Project: Building a Minimal Wayland Client for a Terminal Emulator
-
-This assignment introduces the fundamentals of the Wayland protocol and client implementation.
-You will implement core components of a minimal Wayland client, providing the groundwork for
-a graphical terminal emulator. The provided skeleton file **wayland_assignment.c** contains
-type definitions, function signatures, and inline comments describing each function’s intent.
-
----
+This introduces the fundamentals of the Wayland protocol and client implementation.
+Implementat core components of a minimal Wayland client, providing the groundwork for
+a graphical terminal emulator.       
 
 ## Learning Objectives
 
@@ -19,9 +14,9 @@ type definitions, function signatures, and inline comments describing each funct
 
 ---
 
-## Assignment Structure
+## Structure
 
-The skeleton file is divided into several logical sections. Each part builds toward a functioning
+The file is divided into several logical sections. Each part builds toward a functioning
 Wayland client capable of opening a window and rendering a surface.
 
 1. **Initialization** – Connect to the Wayland display using a UNIX domain socket.
@@ -32,11 +27,11 @@ Wayland client capable of opening a window and rendering a surface.
 
 ---
 
-## Step-by-Step Implementation Instructions
+##  Implementation 
 
 ### 1. Buffer Helper Methods
 
-**Functions to implement:**
+**Functions:**
 - `buf_write_u32`
 - `buf_write_u16`
 - `buf_write_string`
@@ -58,7 +53,7 @@ to and from byte buffers. Wayland uses little-endian encoding and 4-byte alignme
 
 ### 2. Connection Setup
 
-**Function to implement:**
+**Function:**
 - `wayland_display_connect`
 
 **Goal:**
@@ -74,7 +69,7 @@ Connect to the Wayland compositor via a UNIX domain socket.
 
 ### 3. Message Marshalling
 
-**Functions to implement:**
+**Functions:**
 - `wayland_wl_display_get_registry`
 - `wayland_wl_registry_bind`
 
@@ -91,7 +86,7 @@ Build and send binary messages conforming to the Wayland wire protocol.
 
 ### 4. Shared Memory Pool and Buffer Creation
 
-**Functions to implement:**
+**Functions:**
 - `wayland_wl_shm_create_pool`
 - `wayland_wl_shm_pool_create_buffer`
 
@@ -109,7 +104,7 @@ Create a shared memory pool for rendering and attach buffers to it.
 
 ### 5. Rendering Helpers
 
-**Functions to implement:**
+**Functions:**
 - `renderer_clear`
 - `renderer_draw_rect`
 - `render_frame`
@@ -126,7 +121,7 @@ Draw into the shared memory buffer and display it via the Wayland surface.
 
 ### 6. Surface and Window Management
 
-**Functions to implement:**
+**Functions:**
 - `wayland_wl_surface_attach`
 - `wayland_wl_surface_commit`
 - `wayland_xdg_surface_get_toplevel`
@@ -145,7 +140,7 @@ Link your buffers to visible Wayland surfaces and present them on screen.
 
 ### 7. Event Handling
 
-**Function to implement:**
+**Function:**
 - `wayland_handle_message`
 
 **Goal:**
@@ -162,7 +157,7 @@ Parse messages from the compositor and update your local state.
 
 ### 8. Main Program Flow
 
-**Function to implement:**
+**Function:**
 - `main`
 
 **Goal:**
@@ -190,15 +185,4 @@ Orchestrate all steps and run the Wayland client loop.
 
 ---
 
-## Submission
-
-Submit your completed `wayland_assignment.c` along with a short README describing:
-- Which milestones you completed.
-- Any challenges or insights gained.
-- Possible extensions (text rendering, shell commands, animations, etc.).
-
----
-
-**Tip:** Focus on understanding how the client and compositor communicate through file descriptors and binary messages. Debugging can be done using tools like `WAYLAND_DEBUG=1` to observe protocol traffic.
-
-Good luck, and enjoy your first deep dive into low-level Linux graphics programming!
+Debugging can be done using tools like `WAYLAND_DEBUG=1` to observe protocol traffic.
