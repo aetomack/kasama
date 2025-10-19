@@ -140,10 +140,180 @@ static bool is_old_id(uint32_T *old_ids, uint32_t *old_ids_len,  uint32_t id) {
 * Why not use wl_display_connect from libwayland-client and avoid this low level logic? 
 * Because I'm a stud. I don't take no shit. I smoke my stogie anywhere I want. I don't have to hide like you.
 */
+<<<<<<< HEAD
+=======
+
+// Utility macros
+#define SHELL "/bin/dash"
+#define cstring_len(s) (sizeof(s)-1) // to retrieve string lengths
+#define roundup_4(n) (((n) + 3) & -4) // Wayland protocol messages must be 4-byte aligned. Pads message lengths.
+
+
+/*
+* We first must connect to the wayand compositor. Where X11 can run over network via TCP/IP, Wayland runs locally 
+* and uses a UNIX domain socket. 
+*
+* Why not use wl_display_connect from libwayland-client and avoid this low level logic? 
+* Because I'm a stud. I don't take no shit. I smoke my stogie anywhere I want. I don't have to hide like you.
+*/
+>>>>>>> main
 static int wayland_display_connect() {
   char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR"); // Wayland sockets live under the runtime directory.
   if (xdg_runtime_dir == NULL) {
     return EINVAL; // if unreachable, cannot connect to compositor. fail.
+<<<<<<< HEAD
+=======
+  }
+
+  uint64_t xdg_runtime_dir_len = strlen(xdg_runtime_dir);
+
+  // Build base path
+  struct sockaddr_un addr = {.sun_family = AF_UNIX}; // standard struct for unix domain sockets. AF_UNIX instructs this is a local socket
+  assert(xdg_runtime_dir_len <= cstring_len(addr.sun_path)); // addr.sun_path is the actual socket path. Ensure we don't overflow
+  uint64_t socket_path_len = 0;
+
+  memcpy(addr.sun_path, xdg_runtime_dir, xdg_runtime_dir_len);
+  socket_path_len += xdg_runtime_dir_len;
+
+  addr.sun_path[socket_path_len++] = '/';
+
+  // Append display name to base path
+  char *wayland_display = getenv("WAYLAND_DISPLAY"); // which socket file to connect to?
+  if (wayland_display == NULL) {
+    char wayland_display_default[] = "wayland-0"; // if not set, just default to 0
+    uint64_t wayland_display_default_len = cstring_len(wayland_display_default);
+
+    memcpy(addr.sun_path + socket_path_len, wayland_display_default, wayland_display_default_len);
+    socket_path_len += wayland_display_default_len;
+  } else {
+    uint64_t wayland_display_len = strlen(wayland_display);
+    memcpy(addr.sun_path + socket_path_len, wayland_display, wayland_display_len);
+    socket_path_len += wayland_display_len;
+  }
+
+  // Create a stream socket
+  int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (fd == -1) {
+    exit(errno);
+  }
+
+  // With our wayland compositor path we built and the socket defined, attempt to connect.
+  // If successful, compositor accepts and the file descriptor becomes communication channel.
+  if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+    exit(errno);
+  }
+  
+  // return file descriptor! We can now send & receive requests & events from the compositor.
+  return fd;
+}
+// Pseudoterminal struct for master, slave
+struct PTY {
+    int master, slave; // int because posix_openpt returns 
+                       // an int of lowest unused file descriptor
+};
+
+// windowing protocol 
+struct X11 {
+    int fd;
+    Display *dpy; 
+    int screen;how to compile a c program
+    Window root;
+
+    Window termwin;
+    GC termgc;
+    unsigned long col_fg, col_bg; 
+    int w, h;
+
+    XFontStruct *xfont;
+    int font_width, font_height;
+    char *buf;
+    int buf_w, buf_h;
+    int buf_x, buf_y;
+};
+
+bool term_set_size(struct PTY *pty, struct X11 *x11) {
+    struct winsize ws = {
+        .ws_col = x11->buf_w,
+        .ws_row = x11->buf_h,
+    };
+
+    // On success, 0 is returned. On error, -1.
+    if (ioctl(pty->master,  // open file descriptor for terminal
+        TIOCSWINSZ,         // Device-dependent operation code to set winsize
+        &ws)                // Pointer to address of ref to winsize
+        == -1) {    
+            perror("ioctl(TIOCSWINS)");
+            return false;
+    }
+
+    return true;
+}
+
+bool pt_pair(struct PTY *pty) {
+    char *slave_name;
+    
+    pty->master = posix_openpt(O_RDWR | O_NOCTTY);
+    if (pty->master == -1) {
+        perror("posix_openpt");
+        return false;
+    }
+
+    if (grantpt(pty->master) == -1) {
+        perror("grantpt");
+        return false;
+    }
+
+    if (unlockpt(pty->master) == -1) {
+        perror("grantpt");
+        return false;
+    }
+
+    slave_name = ptsname(pty->master);
+    if (slave_name == NULL) {
+        perror("ptsname");
+        return false;
+    }
+
+    pty->slave = open(slave_name, O_RDWR | O_NOCTTY);
+    if (pty->slave == -1) {
+        perror("open(slave_name)");
+        return false;
+    }
+
+    return true;
+}
+
+void x11_key(XKeyEvent *ev, struct PTY *pty) {
+  char buf[32];
+  int i, num;
+  KeySym ksym;
+
+  num = XLookupString(ev, buf, sizeof buf, &ksym, 0);
+  for (i = 0; i < num; i++) {
+    write(pty->master, &buf[i], 1);
+  }
+}
+
+void x11_redraw(struct X11 *x11) {
+  int x, y;
+  char buf[1];
+
+  XSetForeground(x11->dpy, x11->termgc, x11->col_fg);
+  XFillRectangle(x11->dpy, x11->termwin, x11->termgc, 0, 0, x11->w, x11->h);
+
+  XSetForeground(x11->dpy, x11->termgc, x11-> col_fg);
+  for(y=0; y < x11->buf_h; y++) {
+    for(x=0; x < x11->buf_w; x++) {
+      buf[0] = x11->buf[y * x11->buf_w + x];
+      if(!iscntrl(buf[0])) {
+        XDrawString(x11->dpy, x11->termwin, x11->termgc, 
+                    x * x11->font_width,
+                    y * x11->font_height + x11->xfont->ascent,
+                    buf, 1
+                    );
+      }
+    }
+>>>>>>> main
   }
 
   uint64_t xdg_runtime_dir_len = strlen(xdg_runtime_dir);
