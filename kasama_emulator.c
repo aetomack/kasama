@@ -1,12 +1,6 @@
 /* wayland_assignment.c
  *
- * Assignment: Build the foundations of a minimal Wayland client
  * ------------------------------------------------------------
- * Goal:
- *  - Provide a skeleton for a student to implement a subset of the
- *    Wayland client code necessary to create buffers, attach them to
- *    surfaces, and handle basic events. This is the first step toward
- *    writing a terminal emulator using the Wayland protocol.
  *
  * Instructions:
  *  - Each function below includes a descriptive comment explaining the
@@ -241,12 +235,13 @@ static uint32_t wayland_wl_display_get_registry(int fd) {
    *  - Wayland messages use 4-byte alignment for total length and padding.
    */
   (void)fd;
+  
   return 0;
 }
 
 static uint32_t wayland_wl_registry_bind(int fd, uint32_t registry, uint32_t name,
                                          uint32_t interface, uint32_t version) {
-  /* Send wl_registry.bind to bind an advertised global. Return local object id. */
+  /* TODO: Send wl_registry.bind to bind an advertised global. Return local object id. */
   (void)fd; (void)registry; (void)name; (void)interface; (void)version;
   return 0;
 }
