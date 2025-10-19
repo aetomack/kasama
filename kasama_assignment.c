@@ -48,6 +48,7 @@
 #define OLD_IDS_CAP 256U
 #define WAYLAND_SOCKET_ENV "WAYLAND_DISPLAY"
 #define DEFAULT_WAYLAND_SOCKET "wayland-0"
+#define roundup_4(n) (((n)+3) & -4)
 
 /* Forward type declarations copied from the original source */
 typedef enum state_state_t state_state_t;
@@ -116,7 +117,7 @@ static inline double wayland_fixed_to_double(uint32_t f) {
 
 /* Check/set helpers for tracking old ids */
 static bool is_old_id(uint32_t *old_ids, uint32_t id) {
-  /* TODO: return true if id is present in old_ids */
+  /* Return true if id is present in old_ids */
   (void)old_ids; (void)id;
 
   for (uint32_t i = 0; i < OLD_IDS_CAP; i++) {
@@ -127,8 +128,11 @@ static bool is_old_id(uint32_t *old_ids, uint32_t id) {
 }
 
 static void store_old_id(uint32_t *old_ids, uint32_t *old_ids_len, uint32_t id) {
-  /* TODO: add id into array, if room; avoid duplicates */
+  /* Add id into array, if room; avoid duplicates */
   (void)old_ids; (void)old_ids_len; (void)id;
+  uint32_t newLen = (*old_ids_len + 1) & OLD_IDS_CAP;
+  olds_ids[newLen] = id;
+  *old_ids_len = newLen;
 }
 
 /* Connect to the Wayland socket defined by WAYLAND_DISPLAY env var or default.
@@ -155,17 +159,30 @@ static int wayland_display_connect() {
 static void buf_write_u32(char *buf, uint64_t *buf_size, uint64_t buf_cap, uint32_t x) {
   /* TODO: write a 32-bit little-endian value into buf, update buf_size. */
   (void)buf; (void)buf_size; (void)buf_cap; (void)x;
+  assert(*buf_size + sizeof(x) <= buf_cap); // first general check
+  assert(((size_t)buf + *buf_size) % sizeof(x) == 0); // checks if exactly enough room
+  *(uint32_t *)(buf + *buf_size) = x;
+  *buf_size += sizeof(x);
 }
 
 static void buf_write_u16(char *buf, uint64_t *buf_size, uint64_t buf_cap, uint16_t x) {
   /* TODO: write a 16-bit little-endian value into buf, update buf_size. */
   (void)buf; (void)buf_size; (void)buf_cap; (void)x;
+  assert(*buf_size + sizeof(x) <= buf_cap);
+  assert(((size_t)buf + *buf_size) % sizeof(x) == 0);
+  *(uint16_t *)(buf + *buf_size) = x;
+  *buf_size += sizeof(x);
 }
 
 static void buf_write_string(char *buf, uint64_t *buf_size, uint64_t buf_cap,
                              char *src, uint32_t src_len) {
-  /* TODO: write a null-terminated string with 4-byte padding as Wayland expects. */
+  /* Write a null-terminated string with 4-byte padding as Wayland expects. */
   (void)buf; (void)buf_size; (void)buf_cap; (void)src; (void)src_len;
+  assert(*buf_size + src_len <= buf_cap);
+  
+  buf_write_u32(buf, buf_size, buf_cap, src_len);
+  memcpy(buf + *buf_size, src, roudnup_4(src_len);
+  *buf_size += roundup_4(src_len);
 }
 
 /* Buffer read helpers: advance the buffer pointer and parse values. These are
@@ -175,18 +192,35 @@ static void buf_write_string(char *buf, uint64_t *buf_size, uint64_t buf_cap,
 static uint32_t buf_read_u32(char **buf, uint64_t *buf_size) {
   (void)buf; (void)buf_size;
   /* TODO: read 4 bytes as little-endian u32, advance *buf by 4, decrement *buf_size */
-  return 0;
+  assert(*buf_size >= sizeof(uint32_t));
+  assert((size_t)*buf % sizeof(uint32_t) == 0);
+
+  uint32_t res = *(uint32_t *)(*buf);
+  *buf += sizeof(res);
+  *buf_size = sizeof(res);
+  return res;
 }
 
 static uint16_t buf_read_u16(char **buf, uint64_t *buf_size) {
   (void)buf; (void)buf_size;
-  /* TODO: read 2 bytes as little-endian u16, advance *buf by 2, decrement *buf_size */
-  return 0;
+  /* Read 2 bytes as little-endian u16, advance *buf by 2, decrement *buf_size */
+  assert(*buf_size >= sizeof(uint16_t));
+  assert((size_t)*buf % sizeof(uint16_t) == 0);
+  
+  uint16_t res = *(uint16_t *)(*buf);
+  *buf += sizeof(res);
+  *buf_size = sizeof(res);
+  return res;
 }
 
 static void buf_read_n(char **buf, uint64_t *buf_size, char *dst, uint64_t n) {
   (void)buf; (void)buf_size; (void)dst; (void)n;
-  /* TODO: copy n bytes from *buf into dst and advance pointer. */
+  /* Copy n bytes from *buf into dst and advance pointer. */
+  assert(*buf_size >= n);
+  // copy n bytes from src to dst
+  memcpy(dst, *buf, n);
+  *buf += n;
+  *buf_size -= n;
 }
 
 /* ---------------- Wayland message helper stubs (marshalling helpers) -------- */
