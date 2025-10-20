@@ -310,10 +310,32 @@ static uint32_t wayland_wl_display_get_registry(int fd) {
 }
 
 static uint32_t wayland_wl_registry_bind(int fd, uint32_t registry, uint32_t name,
-                                         uint32_t interface, uint32_t version) {
+                                         char *interface, uint32_t interface_len, uint32_t version) {
   /* TODO: Send wl_registry.bind to bind an advertised global. Return local object id. */
-  (void)fd; (void)registry; (void)name; (void)interface; (void)version;
-  return 0;
+  (void)fd; (void)registry; (void)name; (void)interface; (void)interface_len; (void)version;
+  uint64_t msg_size = 0;
+  char msg[512] = "";
+  buf_write_u32(msg, &msg_size, sizeof(msg), registry);
+  buf_write_u16(msg, &msg_size, sizeof(msg), wayland_wl_display_get_registry_opcode);
+  
+  uint16_t msg_announced_size = wayland_header_size + sizeof(name) + sizeof(interface_len) + roundup_4(inferface_len) + sizeof(version) + sizeof(wayland_current_id);
+  assert(roundup_4(msg_announced_size) == msg_announced_size);
+  
+  buf_write_u16(msg, &msg_size, sizeof(msg), msg_annoucned_size);
+
+  buf_write_u32(msg, &msg_size, sizeof(msg), name);
+  buf_write_string(msg, &msg_size, sizeof(msg), interface, interface_len);
+  buf_write_u32(msg, &msg_size, sizeof(msg), version);
+
+  wayland_current_id++;
+  buf_write_u32(msg, &msg_size, sizeof(msg), wayland_current_id);
+
+  assert(msg_size == roundup_4(msg_size));
+  
+  if((int64_t)msg_size != send(fd, msg, msg_size, 0))
+    exit(errno);
+
+  return wayland_current_id;
 }
 
 /* Create a shm pool object associated with a file descriptor backing shared memory */
