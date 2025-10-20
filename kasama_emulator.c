@@ -39,6 +39,30 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+static const uint32_t wayland_display_object_id = 1;
+static const uint16_t wayland_wl_registry_event_global = 0;
+static const uint16_t wayland_shm_pool_event_format = 0;
+static const uint16_t wayland_wl_buffer_event_release = 0;
+static const uint16_t wayland_xdg_wm_base_event_ping = 0;
+static const uint16_t wayland_xdg_toplevel_event_configure = 0;
+static const uint16_t wayland_xdg_toplevel_event_close = 1;
+static const uint16_t wayland_xdg_surface_event_configure = 0;
+static const uint16_t wayland_wl_display_get_registry_opcode = 1;
+static const uint16_t wayland_wl_registry_bind_opcode = 0;
+static const uint16_t wayland_wl_compositor_create_surface_opcode = 0;
+static const uint16_t wayland_xdg_wm_base_pong_opcode = 3;
+static const uint16_t wayland_xdg_surface_ack_configure_opcode = 4;
+static const uint16_t wayland_wl_shm_create_pool_opcode = 0;
+static const uint16_t wayland_xdg_wm_base_get_xdg_surface_opcode = 2;
+static const uint16_t wayland_wl_shm_pool_create_buffer_opcode = 0;
+static const uint16_t wayland_wl_surface_attach_opcode = 1;
+static const uint16_t wayland_xdg_surface_get_toplevel_opcode = 1;
+static const uint16_t wayland_wl_surface_commit_opcode = 6;
+static const uint16_t wayland_wl_display_error_event = 0;
+static const uint32_t wayland_format_xrgb8888 = 1;
+static const uint32_t wayland_header_size = 8;
+static const uint32_t color_channels = 4;
+
 /* Helpful constants for this assignment */
 #define OLD_IDS_CAP 256U
 #define WAYLAND_SOCKET_ENV "WAYLAND_DISPLAY"
@@ -265,8 +289,24 @@ static uint32_t wayland_wl_display_get_registry(int fd) {
    *  - You will need to marshal the message into a buffer using buf_write_*.
    *  - Wayland messages use 4-byte alignment for total length and padding.
    */
+
   (void)fd;
-  return fd;
+  uint64_t msg_size = 0;
+  char msg[128] = "";
+
+  buf_write_u32(msg, &msg_size, sizeof(msg), wayland_display_object_id);
+  buf_write_u16(msg, &msg_size, sizeof(msg), wayland_wl_display_get_registry_opcode);
+
+  uint16_t msg_announced_size = wayland_header_size + sizeof(wayland_current_id);
+  assert(roundup_4(msg_announced_size) == msg_announced_size);
+  wayland_current_id++;
+
+  buf_write_u16(msg, &msg_size, sizeof(msg), wayland_current_id);
+
+  if((int64_t)msg_size != send(fd, msg, msg_size, MSG_DONTWAIT))
+    exit(errno);
+
+  return wayland_current_id;
 }
 
 static uint32_t wayland_wl_registry_bind(int fd, uint32_t registry, uint32_t name,
