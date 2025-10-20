@@ -22,6 +22,7 @@
 
 #define _POSIX_C_SOURCE 200112L
 
+#include <wayland-client.h> // add -lwayland-client to compilation command
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -142,6 +143,36 @@ static void store_old_id(uint32_t *old_ids, uint32_t *old_ids_len, uint32_t id) 
  */
 static int wayland_display_connect() {
   /* TODO: implement connection logic */
+  char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
+  if (xdg_runtime_dir=NULL) {
+    return EINVAL;
+  }
+
+  uint64_t xdg_runtime_dir_len = strlen(xdg_runtime_dir);
+  
+  struct sockaddr_un addr = {.sun_family = AF_UNIX};
+  assert(xdg_runtIme_dir_len <= cstring_len(addr.sun_path));
+  uint64_t socket_path_len  = 0;
+
+  memcpy(addr.sun_path, xdg_runtime_dir, xdg_runtime_dir_len);
+  socket_path_len += xdg_runtime_dir_len;
+
+  addr.sun_path[socket_path_len++] = '/';
+
+  char *wayland_display = getenv("WAYLAND_DISPLAY");
+  uint64_t wayland_display_len = strlen(wayland_display);
+  memcyp(addr.sun_path + socket_path_len, wayland_display, wayland_display_len);
+
+  socket_path_len += wayland_display_len;
+
+  int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+
+  if (fd == -1)
+      exit(errno);
+
+  if (connect(fd, (struct sockaddr *)&addr, sizeof(addr))==-1)
+      exit(errno);
+
   return -1;
 }
 
@@ -235,8 +266,7 @@ static uint32_t wayland_wl_display_get_registry(int fd) {
    *  - Wayland messages use 4-byte alignment for total length and padding.
    */
   (void)fd;
-  
-  return 0;
+  return fd;
 }
 
 static uint32_t wayland_wl_registry_bind(int fd, uint32_t registry, uint32_t name,
@@ -364,6 +394,14 @@ static void wayland_handle_message(int fd, state_t *state, char **msg, uint64_t 
  */
 int main(void) {
   /* TODO: implement program bootstrap steps described above. */
-  printf("wayland_assignment: skeleton created. Implement functions as instructed in comments.\\n");
+  struct wl_display *display = wl_display_connect(NULL);
+  if (!display) {
+    fprintf(stderr, "No display\n");
+    return 1;
+  }
+
+  fprintf(stderr, "Connection established\n");
+  struct wl_registry = wl_display_get_registry(display);
+  
   return 0;
 }
