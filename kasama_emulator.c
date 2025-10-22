@@ -201,7 +201,7 @@ static int wayland_display_connect() {
 }
 
 /* Buffer write helpers for message marshaling. These functions append to a
- * character buffer while maintaining size and capacity. Students should use
+ * character buffer while maintaining size and capacity. Use
  * these helpers to prepare Wayland messages to write to the socket.
  */
 
@@ -341,8 +341,55 @@ static uint32_t wayland_wl_registry_bind(int fd, uint32_t registry, uint32_t nam
 /* Create a shm pool object associated with a file descriptor backing shared memory */
 static uint32_t wayland_wl_shm_create_pool(int fd, state_t *state) {
   (void)fd; (void)state;
-  /* TODO: create a wl_shm_pool object (marshal create_pool request) */
-  return 0;
+  /*  create a wl_shm_pool object (marshal create_pool request) */
+
+  assert(state->shm_pool_size > 0);
+
+  uint64_t msg_size = 0;
+  char msg[128] = "";
+  buf_write_u32(msg, &msg_size, sizeof(msg), state->wl_shm);
+  buf_write_u16(msg, &msg_size, sizeof(msg), wayland_wl_shm_create_pool_opcode);
+  uint16_t msg_announced_size = wayland_header_size + sizeof(wayland_current_id) + sizeof(shm_pool_size);
+
+  assert(msg_announced_size == roundup_4(msg_announced_size));
+  buf_write_u16(msg, &msg_size, sizeof(msg), msg_announced_size);
+
+  wayland_current_id++;
+  buf_write_u32(msg, &msg_size, sizeof(msg), wayland_current_id);
+  buf_write_u32(msg, &msg_size, sizeof(msg), state->shm_pool_size);
+
+  assert(msg_size == roundup_4(msg));
+  /* The following will be macros to assist in sending the wayland file descriptor as ancillary data.
+   * Why? In this case, we want to share pixel buffers for rendering. 
+   * Rather than copy large amounts of pixel data between client and compositor, 
+   * a file descriptor for a shared memory region (created by wl_shm) is passed.
+   * Then, both client and compositor can mmap the FD and access to the same memory region.
+   *
+   * Consequence: No memory copying, greater performance.
+   */
+  char buf[CMSG_SPACE(sizeof(state->shm_fd))] = ""; // create ancillary buffer for new FD
+
+  struct iovec io = {.iov_base = msg, .iov_len = msg_size}; // memory region, starting address & size of memory
+  struct msghdr socket_msg = {
+    .msg_iov = &io,
+    .msg_iovlen = 1,
+    .msg_control = control,
+    .msg_controllen = sizeof(control),
+  };
+  
+  struct cmsghdr *cmdhr = CMSG_FIRSTHDR($socket_msg);
+  cmdhr->cmdhr_level = SOL_SOCKET;
+  cmdhr->cmdhr_type = SCM_RIGHTS;
+  cmdhr->cmdhr_len = CMSG_LEN(sizeof(state->shm_fd));
+
+  *((int *)CMSG_DATA(cmdhr)) = state->shm_fd;
+  socket_msg.msg_controllen = CMSG_SPACE(sizeof(state->shm_fd));
+
+  if(sendmsg(fd, &socket_msg, 0) == -1)
+    exit(errno);
+
+  LOG("-> wl_shm@%u.create_pool: wl_shm_pool=%u\n", state->wl_shm, wayland_current_id);
+  return wayland_current_id;
 }
 
 /* Create a buffer from the shm pool */
