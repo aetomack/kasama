@@ -481,7 +481,10 @@ static uint32_t wayland_wl_seat_get_pointer(int fd, uint32_t wl_seat) {
 /* Clear a region of pixels in the shm buffer. Pixels are 32-bit ARGB or similar. */
 static void renderer_clear(volatile uint32_t *pixels, uint64_t size, uint32_t color_rgb) {
   (void)pixels; (void)size; (void)color_rgb;
-  /* TODO: clear `size` pixels to color_rgb. Handle volatile pointers. */
+  /* Clear `size` pixels to color_rgb. Handle volatile pointers. */
+
+  for (uint64_t i = 0; i < size; i++)
+    pixels[i] = color_rgb;
 }
 
 /* Draw a filled rectangle in the framebuffer */
@@ -492,7 +495,21 @@ static void renderer_draw_rect(volatile uint32_t *dst, uint64_t dst_w,
                                uint32_t color_rgb) {
   (void)dst; (void)dst_w; (void)dst_h; (void)dst_stride;
   (void)rect_x; (void)rect_y; (void)rect_w; (void)rect_h; (void)color_rgb;
-  /* TODO: implement safe rectangle drawing with bounds checks. */
+  /* implement safe rectangle drawing with bounds checks. */
+
+  uint64_t dst_len = window_w * window_h;
+
+  for(uint64_t src.y = 0; src.y < rec_h; src.y++){
+    for(uint64_t src.x = 0; src.x < rect_w; src.x++) {
+      uint64_t x = dst_x + src_x;
+      uint64_t y = dst_y + src_y;
+
+      if (x >= window_w || y >= window_h)
+        continue;
+
+      uint64_t pos = window_w * y + x;
+    }
+  }
 }
 
 /* Compose a full frame by drawing the entities and other UI elements */
