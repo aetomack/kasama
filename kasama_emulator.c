@@ -39,6 +39,15 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+static bool log_enabled = true;
+
+// standard log macro
+#define LOG(msg, ...)
+  do {
+    if (log_enabled)
+      fprintf(stderr, msg, __VA_ARGS__);
+  } while (0)
+
 static const uint32_t wayland_display_object_id = 1;
 static const uint16_t wayland_wl_registry_event_global = 0;
 static const uint16_t wayland_shm_pool_event_format = 0;
@@ -68,6 +77,8 @@ static const uint32_t color_channels = 4;
 #define WAYLAND_SOCKET_ENV "WAYLAND_DISPLAY"
 #define DEFAULT_WAYLAND_SOCKET "wayland-0"
 #define roundup_4(n) (((n)+3) & -4)
+#define cstring_len(s) (sizeof(s) - 1)
+#define clamp(lower, x, upper) ((x) >= (lower) ? ((x) <= (upper)) : (lower))
 
 /* Forward type declarations copied from the original source */
 typedef enum state_state_t state_state_t;
@@ -166,7 +177,7 @@ static void store_old_id(uint32_t *old_ids, uint32_t *old_ids_len, uint32_t id) 
  *    and connect to a UNIX domain socket with that name.
  */
 static int wayland_display_connect() {
-  /* TODO: implement connection logic */
+  /*: implement connection logic */
   char *xdg_runtime_dir = getenv("XDG_RUNTIME_DIR");
   if (xdg_runtime_dir=NULL) {
     return EINVAL;
@@ -206,7 +217,7 @@ static int wayland_display_connect() {
  */
 
 static void buf_write_u32(char *buf, uint64_t *buf_size, uint64_t buf_cap, uint32_t x) {
-  /* TODO: write a 32-bit little-endian value into buf, update buf_size. */
+  /* write a 32-bit little-endian value into buf, update buf_size. */
   (void)buf; (void)buf_size; (void)buf_cap; (void)x;
   assert(*buf_size + sizeof(x) <= buf_cap); // first general check
   assert(((size_t)buf + *buf_size) % sizeof(x) == 0); // checks if exactly enough room
@@ -215,7 +226,7 @@ static void buf_write_u32(char *buf, uint64_t *buf_size, uint64_t buf_cap, uint3
 }
 
 static void buf_write_u16(char *buf, uint64_t *buf_size, uint64_t buf_cap, uint16_t x) {
-  /* TODO: write a 16-bit little-endian value into buf, update buf_size. */
+  /* write a 16-bit little-endian value into buf, update buf_size. */
   (void)buf; (void)buf_size; (void)buf_cap; (void)x;
   assert(*buf_size + sizeof(x) <= buf_cap);
   assert(((size_t)buf + *buf_size) % sizeof(x) == 0);
@@ -240,7 +251,7 @@ static void buf_write_string(char *buf, uint64_t *buf_size, uint64_t buf_cap,
  */
 static uint32_t buf_read_u32(char **buf, uint64_t *buf_size) {
   (void)buf; (void)buf_size;
-  /* TODO: read 4 bytes as little-endian u32, advance *buf by 4, decrement *buf_size */
+  /* read 4 bytes as little-endian u32, advance *buf by 4, decrement *buf_size */
   assert(*buf_size >= sizeof(uint32_t));
   assert((size_t)*buf % sizeof(uint32_t) == 0);
 
@@ -311,7 +322,7 @@ static uint32_t wayland_wl_display_get_registry(int fd) {
 
 static uint32_t wayland_wl_registry_bind(int fd, uint32_t registry, uint32_t name,
                                          char *interface, uint32_t interface_len, uint32_t version) {
-  /* TODO: Send wl_registry.bind to bind an advertised global. Return local object id. */
+  /* Send wl_registry.bind to bind an advertised global. Return local object id. */
   (void)fd; (void)registry; (void)name; (void)interface; (void)interface_len; (void)version;
   uint64_t msg_size = 0;
   char msg[512] = "";
@@ -395,8 +406,34 @@ static uint32_t wayland_wl_shm_create_pool(int fd, state_t *state) {
 /* Create a buffer from the shm pool */
 static uint32_t wayland_wl_shm_pool_create_buffer(int fd, state_t *state) {
   (void)fd; (void)state;
-  /* TODO: allocate and create a wl_buffer using wl_shm_pool.create_buffer */
-  return 0;
+  /* allocate and create a wl_buffer using wl_shm_pool.create_buffer */
+  assert(state->shm_pool_size > 0);
+
+  uint64_t msg_size = 0;
+  char msg[128] = "";
+  buf_write_u32(msg, &msg_size, sizeof(msg), state->wl_shm);
+  buf_write_u16(msg, &msg_size, sizeof(msg), wayland_wl_shm_pool_create_buffer_opcode);
+  uint16_t msg_announced_size = wayland_header_size + sizeof(wayland_current_id) + sizeof(uint32_t) * 5;
+  
+  assert(roundup_4(msg_announced_size) == msg_announced_size);
+  buf_write_u16(msg, &msg_size, sizeof(msg), msg_announced_size);
+  wayland_current_id++;
+  buf_write_u32(msg, &msg_size, sizeof(msg), wayland_current_id);
+  uint32_t offset = 0;
+  buf_write_u32(msg, &msg_size, sizeof(msg), offset);
+  buf_write_u32(msg, &msg_size, sizeof(msg), state->w);
+  buf_write_u32(msg, &msg_size, sizeof(msg), state->h);
+  buf_write_u32(msg, &msg_size, sizeof(msg), state->stride); 
+
+  uint32_t format = wayland_format_xrgb8888;
+  buf_write_u32(msg, &msg_size, sizeof(msg), format);
+  
+  if((int64_t)msg_size != send(fd, msg, msg_size, 0))
+    exit(errno);
+
+  LOG("-> wl_shm_pool@%u.create.buffer: wl_buffer=%u\n", state->wl_shm_pool, wayland_current_id);
+
+  return wayland_current_id;
 }
 
 static void wayland_wl_buffer_destroy(int fd, uint32_t wl_buffer) {
